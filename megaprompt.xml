@@ -1,0 +1,114 @@
+<mission>
+    <description>We are going to replicate a game written in QBasic with Javascript, using P5.js. All the code should be contained in a single HTML page, so we'll pull dependencies from CDNs. We won't be using any file outside the HTML other than the libraries from CDNs</description>
+    <gameName>Gorillas</gameName>
+    <genre>Artillery</genre>
+    <players>2 (human vs. computer)</players>
+    <objective>To destroy the opponent gorilla by hitting them with explosive bananas.</objective>
+
+    <gameplay>
+        <turnBased>true</turnBased>
+        <actions>
+            <action name="Adjust Angle">
+                <description>Players input an angle (typically in degrees) to determine the trajectory of the banana.</description>
+                <inputMethod>Keyboard</inputMethod>
+                <range>0-360 degrees</range>
+            </action>
+            <action name="Adjust Velocity">
+                <description>Players input a velocity (typically a numerical value) to determine the speed of the banana.</description>
+                <inputMethod>Keyboard</inputMethod>
+                <range>0- (Implementation dependent, but should have an upper limit)</range>
+            </action>
+            <action name="Fire">
+                <description>Launches the banana based on the set angle and velocity.</description>
+            </action>
+        </actions>
+
+        <physics>
+            <gravity>true</gravity>
+            <gravityValue>9.8 m/s^2 (Earth Default, user configurable)</gravityValue>
+            <wind>true</wind>
+            <windDescription>Variable, shown by an arrow at the bottom of the screen. Length indicates strength, direction indicates direction.</windDescription>
+            <projectile>Explosive Banana</projectile>
+        </physics>
+
+        <environment>
+            <terrain>City skyline (static, randomly generated)</terrain>
+            <gorillas>Two gorillas positioned on opposite sides of the terrain, on top of buildings.</gorillas>
+            <sun>Present in the background; hitting it has a special effect.</sun>
+        </environment>
+
+    </gameplay>
+
+    <winningCondition>
+        <description>The first gorilla to be hit by a banana explodes and loses the round. The other gorilla wins the round. The game is played to a set number of points (default 3, user configurable).</description>
+    </winningCondition>
+
+    <controls>
+        <description>Keyboard input for angle and velocity. Specific keys are not defined in the original source, so the AI can choose appropriate mappings.</description>
+    </controls>
+
+    <uiElements>
+        <screen>
+            <element name="Player Names">Displays the names of the players.</element>
+            <element name="Score">Displays the current score for each player.</element>
+            <element name="Angle Input">Input field for the angle.</element>
+            <element name="Velocity Input">Input field for the velocity.</element>
+            <element name="Wind Indicator">Visual representation of the wind speed and direction.</element>
+            <element name="Cityscape">Graphical representation of the city skyline.</element>
+            <element name="Gorillas">Graphical representation of the gorillas.</element>
+            <element name="Banana">Graphical representation of the banana projectile.</element>
+            <element name="Explosion">Animation of the banana explosion.</element>
+            <element name="Sun">Graphical representation of the sun.</element>
+            <element name="Game Over Screen">Displays the final score and a "Play Again" option.</element>
+            <element name="Intro Screen">Displays the game title and copyright information.</element>
+        </screen>
+    </uiElements>
+
+    <visualDescription>
+        <screenLayout>
+            <description>The game is displayed on a full-screen canvas with a dark blue background.</description>
+        </screenLayout>
+        <cityscape>
+            <description>A randomly generated city skyline spans the width of the screen. Buildings are various shades of grey with yellow windows, creating a pixelated look. The buildings have different heights and widths, creating a jagged silhouette against the background.</description>
+        </cityscape>
+        <gorillas>
+            <description>Two gorillas are positioned on top of buildings at opposite ends of the screen. They are drawn in a simple, pixelated style, with orange bodies and darker outlines. They have a slightly cartoonish appearance.</description>
+        </gorillas>
+        <banana>
+            <description>The banana projectile is a small, slightly curved yellow shape. It follows a parabolic trajectory across the screen when launched.</description>
+        </banana>
+        <sun>
+            <description>A bright yellow sun with a simple smiley face is located in the center of the top portion of the screen.</description>
+        </sun>
+        <uiElements>
+            <description>
+                In the center-bottom of the screen, the score is displayed as 0-Score-0 with a small red arrow underneath the 0-Score-0 text.
+                At the top right corner of the screen, "Liam" (or the respective player 2 name) is displayed in white text.
+            </description>
+        </uiElements>
+        <overallStyle>
+            <description>The game has a retro, pixelated aesthetic reminiscent of MS-DOS games. The graphics are simple but clear, with a limited color palette. The overall look is playful and nostalgic.</description>
+        </overallStyle>
+    </visualDescription>
+
+
+    <additionalNotes>
+        <note>The game involves trial and error to master aiming and accounting for gravity and wind.</note>
+        <note>The original game was written in QBasic and is easily modifiable.</note>
+        <note>The AI should implement the game logic as closely as possible to the original QBasic source code, including physics, collision detection, and graphical elements.</note>
+        <note>The AI can choose appropriate graphical assets, but should maintain the overall aesthetic of the original game.</note>
+        <note>Sound effects and music from the original game should be included if possible.</note>
+        <note>The AI should handle edge cases and invalid input gracefully.</note>
+        <note>The AI should implement the intro sequence and victory dance as described in the source code.</note>
+        <note>We are going to generate all graphics with HTML, CSS and/or SVG, and P5.js</note>
+        <note>Use the latest version of P5.js</note>
+        <note>Don't implement any sound</note>
+        <note>Make it responsive and full page</note>
+    </additionalNotes>
+
+    <sourceCode>
+        <description>The complete QBasic source code for Gorillas is provided as a separate document or within this XML structure (see below).</description>
+        <codeUrl>https://gist.githubusercontent.com/caffo/1326838/raw/65460506dd08eed5605eb84405a0d0e71aac9150/GORILLA.BAS</codeUrl>
+    </sourceCode>
+
+</mission>
