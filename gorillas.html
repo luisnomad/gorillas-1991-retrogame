@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gorillas</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #00a;
+            font-family: monospace;
+        }
+        canvas {
+            display: block;
+        }
+        #gameUI {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .input-box {
+            position: absolute;
+            left: 50%;
+            bottom: 60px;
+            transform: translateX(-50%);
+            background: #00a;
+            padding: 10px;
+            color: white;
+            pointer-events: auto;
+            text-align: center;
+            display: none;
+        }
+        input {
+            background: #00a;
+            border: 1px solid white;
+            color: white;
+            padding: 5px;
+            margin: 5px;
+            font-family: monospace;
+            width: 100px;
+        }
+        button {
+            background: white;
+            border: none;
+            padding: 5px 10px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameUI">
+        <div id="inputBox" class="input-box">
+            <input type="number" id="angleInput" placeholder="Angle (0-360)">
+            <input type="number" id="velocityInput" placeholder="Velocity (1-100)">
+            <button onclick="submitTurn()">Fire!</button>
+        </div>
+    </div>
+    <script>
+        let buildings = [];
+        let gorillas = [];
+        let currentPlayer = 0;
+        let banana = null;
+        let gravity = 9.8;
+        let wind = 0;
+        let scores = [0, 0];
+        let gameState = 'input'; // input, animation, explosion, ai
+        let explosion = null;
+        let windowAspect;
+        let holes = [];
+
+        class Building {
+            constructor(x, w, h, color) {
+                this.x = x;
+                this.w = w;
+                this.h = h;
+                this.color = color;
+                this.windows = [];
+                this.generateWindows();
+            }
+
+            generateWindows() {
+                const windowSize = this.w / 5;
+                const rows = Math.floor(this.h / windowSize);
+                const cols = Math.floor(this.w / windowSize);
+                
+                for (let row = 0; row < rows; row++) {
+                    for (let col = 0; col < cols; col++) {
+                        if (Math.random() > 0.2) {
+                            this.windows.push({
+                                x: col * windowSize + windowSize/4,
+                                y: row * windowSize + windowSize/4,
+                                size: windowSize/2
+                            });
+                        }
+                    }
+                }
+            }
+
+            draw() {
+                fill(this.color);
+                rect(this.x, height - this.h, this.w, this.h);
+                
+                fill(255, 255, 0);
+                this.windows.forEach(w => {
+                    rect(this.x + w.x, height - this.h + w.y, w.size, w.size);
+                });
+            }
+        }
+
+        class Gorilla {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.size = 40;
+            }
+
+            draw() {
+                push();
+                translate(this.x, this.y);
+                
+                // Body
+                fill(255, 165, 0);
+                rect(-this.size/2, -this.size, this.size, this.size);
+                
+                // Arms
+                rect(-this.size*0.7, -this.size*0.8, this.size*0.3, this.size*0.3);
+                rect(this.size*0.4, -this.size*0.8, this.size*0.3, this.size*0.3);
+                
+                // Head
+                rect(-this.size*0.3, -this.size*1.3, this.size*0.6, this.size*0.3);
+                
+                pop();
+            }
+        }
+
+        class Banana {
+            constructor(x, y, angle, velocity) {
+                this.x = x;
+                this.y = y;
+                this.angle = angle;
+                this.velocity = velocity;
+                this.time = 0;
+                this.initialX = x;
+                this.initialY = y;
+            }
+
+            update() {
+                this.time += 0.1;
+                const radians = this.angle * Math.PI / 180;
+                this.x = this.initialX + (this.velocity * Math.cos(radians) * this.time) + (wind * this.time);
+                this.y = this.initialY - (this.velocity * Math.sin(radians) * this.time) + (0.5 * gravity * this.time * this.time);
+                
+                return this.checkCollision();
+            }
+
+            checkCollision() {
+                // Check holes (to prevent double collisions)
+                for (let hole of holes) {
+                    if (dist(this.x, this.y, hole.x, hole.y) < hole.radius) {
+                        return null;
+                    }
+                }
+                
+                // Check building collision
+                for (let building of buildings) {
+                    if (this.x >= building.x && this.x <= building.x + building.w &&
+                        this.y >= height - building.h && this.y <= height) {
+                        return { type: 'building', x: this.x, y: this.y };
+                    }
+                }
+                
+                // Check gorilla collision
+                for (let i = 0; i < gorillas.length; i++) {
+                    const g = gorillas[i];
+                    if (this.x >= g.x - g.size/2 && this.x <= g.x + g.size/2 &&
+                        this.y >= g.y - g.size && this.y <= g.y) {
+                        return { type: 'gorilla', x: this.x, y: this.y, player: i };
+                    }
+                }
+                
+                // Check screen bounds
+                if (this.x < 0 || this.x > width || this.y > height) {
+                    return { type: 'out', x: this.x, y: this.y };
+                }
+                
+                return null;
+            }
+
+            draw() {
+                fill(255, 255, 0);
+                circle(this.x, this.y, 10);
+            }
+        }
+
+        class Explosion {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 0;
+                this.maxRadius = 40;
+                this.growing = true;
+            }
+
+            update() {
+                if (this.growing) {
+                    this.radius += 2;
+                    if (this.radius >= this.maxRadius) {
+                        this.growing = false;
+                    }
+                } else {
+                    this.radius -= 2;
+                    if (this.radius <= 0) {
+                        holes.push({
+                            x: this.x,
+                            y: this.y,
+                            radius: this.maxRadius
+                        });
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            draw() {
+                fill(255, 0, 0);
+                circle(this.x, this.y, this.radius * 2);
+            }
+        }
+
+        function calculateAIShot() {
+            const g1 = gorillas[0];
+            const g2 = gorillas[1];
+            
+            // Base angle and velocity on distance and height difference
+            const dx = g1.x - g2.x;
+            const dy = g1.y - g2.y;
+            const distance = Math.abs(dx);
+            
+            // Adjust for wind
+            const windAdjustment = wind * distance * 0.1;
+            
+            // Calculate initial velocity based on distance
+            let velocity = Math.min(100, Math.max(50, distance / 10));
+            
+            // Calculate angle (in degrees)
+            let angle = 45; // Start with 45 degrees
+            
+            // Adjust angle based on height difference
+            if (dy !== 0) {
+                angle += (dy / distance) * 45;
+            }
+            
+            // Add some randomness
+            angle += random(-5, 5);
+            velocity += random(-5, 5);
+            
+            // Ensure values are within bounds
+            angle = Math.max(0, Math.min(180, angle));
+            velocity = Math.max(1, Math.min(100, velocity));
+            
+            return { angle, velocity };
+        }
+
+        function setup() {
+            createCanvas(windowWidth, windowHeight);
+            windowAspect = windowWidth / windowHeight;
+            generateLevel();
+        }
+
+        function generateLevel() {
+            buildings = [];
+            holes = [];
+            const buildingCount = Math.floor(width / 100);
+            const maxHeight = height * 0.8;
+            const buildingWidth = width / buildingCount;
+            
+            const colors = ['#008080', '#800000', '#808080'];
+            
+            for (let i = 0; i < buildingCount; i++) {
+                const h = random(maxHeight * 0.3, maxHeight);
+                const color = colors[Math.floor(random(colors.length))];
+                buildings.push(new Building(i * buildingWidth, buildingWidth, h, color));
+            }
+
+            // Place gorillas
+            const leftBuilding = buildings[Math.floor(buildingCount * 0.2)];
+            const rightBuilding = buildings[Math.floor(buildingCount * 0.8)];
+            
+            gorillas = [
+                new Gorilla(leftBuilding.x + leftBuilding.w/2, height - leftBuilding.h - 20),
+                new Gorilla(rightBuilding.x + rightBuilding.w/2, height - rightBuilding.h - 20)
+            ];
+
+            wind = random(-2, 2);
+            gameState = 'input';
+            document.getElementById('inputBox').style.display = 'block';
+        }
+
+        function draw() {
+            background('#00a');
+            
+            // Draw sun
+            fill(255, 255, 0);
+            circle(width/2, 50, 40);
+            fill(0);
+            circle(width/2 - 8, 45, 5);
+            circle(width/2 + 8, 45, 5);
+            arc(width/2, 55, 20, 20, 0, PI);
+            
+            // Draw buildings
+            buildings.forEach(b => b.draw());
+            
+            // Draw explosion holes
+            fill('#00a');
+            holes.forEach(hole => {
+                circle(hole.x, hole.y, hole.radius * 2);
+            });
+            
+            // Draw gorillas
+            gorillas.forEach(g => g.draw());
+            
+            // Draw UI
+            fill(255);
+            textSize(20);
+            textAlign(LEFT);
+            text(`Player ${currentPlayer + 1}`, 20, 30);
+            textAlign(RIGHT);
+            text(`${scores[0]}-Score-${scores[1]}`, width/2, height - 20);
+            
+            // Draw wind indicator
+            const windScale = 20;
+            stroke(255, 0, 0);
+            line(width/2 - windScale * wind, height - 40,
+                 width/2 + windScale * wind, height - 40);
+            triangle(width/2 + windScale * wind, height - 40,
+                    width/2 + windScale * wind - 5, height - 45,
+                    width/2 + windScale * wind - 5, height - 35);
+            noStroke();
+            
+            if (gameState === 'animation' && banana) {
+                const collision = banana.update();
+                banana.draw();
+                
+                if (collision) {
+                    explosion = new Explosion(collision.x, collision.y);
+                    gameState = 'explosion';
+                    
+                    if (collision.type === 'gorilla') {
+                        scores[1 - collision.player]++;
+                        setTimeout(() => {
+                            if (scores[0] >= 3 || scores[1] >= 3) {
+                                alert(`Player ${scores[0] > scores[1] ? 1 : 2} wins!`);
+                                scores = [0, 0];
+                            }
+                            generateLevel();
+                        }, 2000);
+                    } else {
+                        setTimeout(() => {
+                            if (currentPlayer === 0) {
+                                gameState = 'input';
+                                document.getElementById('inputBox').style.display = 'block';
+                            } else {
+                                gameState = 'ai';
+                                makeAIMove();
+                            }
+                        }, 1000);
+                    }
+                }
+            }
+            
+            if (gameState === 'explosion' && explosion) {
+                if (explosion.update()) {
+                    explosion = null;
+                } else {
+                    explosion.draw();
+                }
+            }
+        }
+
+        function makeAIMove() {
+            setTimeout(() => {
+                const shot = calculateAIShot();
+                const g = gorillas[currentPlayer];
+                banana = new Banana(g.x, g.y - g.size, 180 - shot.angle, shot.velocity);
+                gameState = 'animation';
+                currentPlayer = 1 - currentPlayer;
+            }, 1000);
+        }
+
+        function submitTurn() {
+            const angle = parseInt(document.getElementById('angleInput').value);
+            const velocity = parseInt(document.getElementById('velocityInput').value);
+            
+            if (isNaN(angle) || isNaN(velocity) || 
+                angle < 0 || angle > 360 || 
+                velocity < 1 || velocity > 100) {
+                alert('Please enter valid values!\nAngle: 0-360\nVelocity: 1-100');
+                return;
+            }
+            
+            document.getElementById('inputBox').style.display = 'none';
+            document.getElementById('angleInput').value = '';
+            document.getElementById('velocityInput').value = '';
+            
+            const g = gorillas[currentPlayer];
+            banana = new Banana(g.x, g.y - g.size, angle, velocity);
+            gameState = 'animation';
+            currentPlayer = 1 - currentPlayer;
+        }
+
+        function windowResized() {
+            const oldWidth = width;
+            const oldHeight = height;
+            const scaleX = windowWidth / oldWidth;
+            const scaleY = windowHeight / oldHeight;
+
+            resizeCanvas(windowWidth, windowHeight);
+            windowAspect = windowWidth / windowHeight;
+
+            // Adjust buildings and their windows
+            const buildingCount = buildings.length;
+            const buildingWidth = windowWidth / buildingCount;
+            buildings.forEach((building, index) => {
+                const relativeX = building.x / oldWidth;
+                building.x = relativeX * windowWidth;
+                building.w = buildingWidth;
+                building.h *= scaleY;
+
+                // Adjust windows
+                building.windows.forEach(window => {
+                    window.x = (window.x / oldWidth) * windowWidth;
+                    window.y = (window.y / oldHeight) * windowHeight;
+                    window.size *= scaleX;
+                });
+            });
+
+            // Adjust gorillas - maintain relative positions
+            gorillas.forEach(gorilla => {
+                const relativeX = gorilla.x / oldWidth;  // Get X position as percentage
+                const relativeY = gorilla.y / oldHeight; // Get Y position as percentage
+                gorilla.x = relativeX * windowWidth;     // Apply percentage to new dimensions
+                gorilla.y = relativeY * windowHeight;
+                gorilla.size *= scaleX;                  // Scale size proportionally
+            });
+
+            // Adjust banana position if it exists
+            if (banana) {
+                const relativeX = banana.x / oldWidth;
+                const relativeY = banana.y / oldHeight;
+                banana.x = relativeX * windowWidth;
+                banana.y = relativeY * windowHeight;
+                banana.initialX = (banana.initialX / oldWidth) * windowWidth;
+                banana.initialY = (banana.initialY / oldHeight) * windowHeight;
+            }
+
+            // Adjust explosion holes - maintain relative positions
+            holes.forEach(hole => {
+                const relativeX = hole.x / oldWidth;     // Get X position as percentage
+                const relativeY = hole.y / oldHeight;    // Get Y position as percentage
+                hole.x = relativeX * windowWidth;        // Apply percentage to new dimensions
+                hole.y = relativeY * windowHeight;
+                hole.radius *= scaleX;                   // Scale radius proportionally
+            });
+        }
+    </script>
+</body>
+</html>
